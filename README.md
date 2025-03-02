@@ -50,9 +50,6 @@ API_KEY - апи ключ.
 ```bash
   poetry run pytest
 ```
-
-```
-
 *   **Swagger UI:**  Запусти приложение (`docker-compose up`) и перейди по адресу `http://localhost:8000/docs`.  Убедись, что:
 *   Все роуты (`/organizations`, `/buildings`, `/activities`) отображаются.
 *   Для каждого роута видны все методы (GET, POST).

@@ -2,52 +2,52 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine  # Используем легковесный образ PostgreSQL
     ports:
-      - "5433:5432"
+      - "5433:5432"  # Пробрасываем порт 5432 контейнера на порт 5433 хоста
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres  # Имя пользователя PostgreSQL
+      POSTGRES_PASSWORD: root  # Пароль пользователя
+      POSTGRES_DB: postgres  # Имя базы данных
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data  # Сохраняем данные PostgreSQL в volume
     networks:
-      - my_network
+      - my_network  # Подключаем к сети
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]  # Проверка здоровья базы данных
       interval: 5s
       timeout: 5s
       retries: 5
 
   app:
-    build: .
+    build: .  # Собираем образ из текущего Dockerfile
     ports:
-      - "8000:8000"
+      - "8000:8000"  # Пробрасываем порт 8000 контейнера на порт 8000 хоста
     environment:
-      DATABASE_URL: postgresql://postgres:root@db:5432/postgres
-      API_KEY: root
+      DATABASE_URL: postgresql://postgres:root@db:5432/postgres  # URL для подключения к базе данных
+      API_KEY: root  # API ключ для авторизации
     networks:
-      - my_network
+      - my_network  # Подключаем к сети
     depends_on:
       db:
-        condition: service_healthy
-    command: /bin/bash -c "alembic upgrade head && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+        condition: service_healthy  # Запускаем только после успешного старта базы данных
+    command: /bin/bash -c "alembic upgrade head && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"  # Команда для запуска приложения
 
   seed:
-    build: .
+    build: .  # Собираем образ из текущего Dockerfile
     environment:
-      DATABASE_URL: postgresql://postgres:root@db:5432/postgres
-      API_KEY: root
+      DATABASE_URL: postgresql://postgres:root@db:5432/postgres  # URL для подключения к базе данных
+      API_KEY: root  # API ключ для авторизации
     networks:
-      - my_network
+      - my_network  # Подключаем к сети
     depends_on:
       db:
-        condition: service_healthy
-    command: ["poetry", "run", "python", "seed.py"]
+        condition: service_healthy  # Запускаем только после успешного старта базы данных
+    command: ["poetry", "run", "python", "seed.py"]  # Команда для запуска скрипта заполнения базы данных
 
 volumes:
-  postgres_data:
+  postgres_data:  # Volume для хранения данных PostgreSQL
 
 networks:
   my_network:
-    driver: bridge
+    driver: bridge  # Создаем bridge-сеть для контейнеров

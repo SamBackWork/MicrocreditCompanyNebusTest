@@ -5,20 +5,25 @@ from typing import List, Optional
 
 
 # --- Activities ---
+
 def get_activity(db: Session, activity_id: int):
+    """Получает информацию об активности по её ID."""
     return db.query(models.Activity).options(joinedload(models.Activity.children)).filter(
         models.Activity.id == activity_id).first()
 
 
 def get_activities(db: Session, skip: int = 0, limit: int = 100):
+    """Получает список всех активностей с возможностью пагинации."""
     return db.query(models.Activity).options(joinedload(models.Activity.children)).offset(skip).limit(limit).all()
 
 
 def get_activity_by_name(db: Session, name: str):
+    """Получает активности, имя которых содержит заданную подстроку (без учета регистра)."""
     return db.query(models.Activity).filter(models.Activity.name.ilike(f"%{name}%")).all()
 
 
 def create_activity(db: Session, activity: schemas.ActivityCreate):
+    """Создает новую активность."""
     db_activity = models.Activity(**activity.model_dump())
     db.add(db_activity)
     db.commit()
@@ -27,15 +32,19 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
 
 
 # --- Buildings ---
+
 def get_building(db: Session, building_id: int):
+    """Получает информацию о здании по его ID."""
     return db.query(models.Building).filter(models.Building.id == building_id).first()
 
 
 def get_buildings(db: Session, skip: int = 0, limit: int = 100):
+    """Получает список всех зданий с возможностью пагинации."""
     return db.query(models.Building).offset(skip).limit(limit).all()
 
 
 def create_building(db: Session, building: schemas.BuildingCreate):
+    """Создает новое здание."""
     db_building = models.Building(**building.model_dump())
     db.add(db_building)
     db.commit()
@@ -44,7 +53,9 @@ def create_building(db: Session, building: schemas.BuildingCreate):
 
 
 # --- Organizations ---
+
 def get_organization(db: Session, organization_id: int):
+    """Получает информацию об организации по её ID, включая связанные данные."""
     return db.query(models.Organization).options(
         joinedload(models.Organization.building),
         joinedload(models.Organization.phones),
@@ -53,6 +64,7 @@ def get_organization(db: Session, organization_id: int):
 
 
 def get_organizations(db: Session, skip: int = 0, limit: int = 100):
+    """Получает список всех организаций с возможностью пагинации, включая связанные данные."""
     return db.query(models.Organization).options(
         joinedload(models.Organization.building),
         joinedload(models.Organization.phones),
@@ -61,6 +73,7 @@ def get_organizations(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_organization(db: Session, organization: schemas.OrganizationCreate):
+    """Создает новую организацию, включая связанные телефоны и активности."""
     db_organization = models.Organization(name=organization.name, building_id=organization.building_id)
     db.add(db_organization)
     db.flush()  # Получаем ID, чтобы использовать его для телефонов и активностей
@@ -79,6 +92,7 @@ def create_organization(db: Session, organization: schemas.OrganizationCreate):
 
 
 def get_organizations_by_building(db: Session, building_id: int, skip: int = 0, limit: int = 100):
+    """Получает список организаций, связанных с определенным зданием, с пагинацией."""
     return db.query(models.Organization).options(
         joinedload(models.Organization.building),
         joinedload(models.Organization.phones),
@@ -88,6 +102,16 @@ def get_organizations_by_building(db: Session, building_id: int, skip: int = 0, 
 
 def get_organizations_by_activity(db: Session, activity_id: int, skip: int = 0, limit: int = 100,
                                   recursive: bool = False):
+    """
+    Получает список организаций, связанных с определенной активностью.
+
+    Args:
+        db: Сессия базы данных.
+        activity_id: ID активности.
+        skip: Смещение для пагинации.
+        limit: Предел для пагинации.
+        recursive: Если True, ищет организации, связанные с дочерними активностями.
+    """
     query = db.query(models.Organization).options(
         joinedload(models.Organization.building),
         joinedload(models.Organization.phones),
@@ -98,7 +122,6 @@ def get_organizations_by_activity(db: Session, activity_id: int, skip: int = 0, 
         # Рекурсивный поиск по дереву деятельностей
         activities = [activity_id]
         stack = [activity_id]
-
         while stack:
             current_activity_id = stack.pop()
             child_activities = db.query(models.Activity.id).filter(
@@ -121,12 +144,10 @@ def get_organizations_by_activity(db: Session, activity_id: int, skip: int = 0, 
                     level_stack.append(child_id)
                 else:
                     print(f"Превышен лимит вложенности для activity c id {child_id}")
-
         filtered_activities = [act_id for act_id, level in activity_levels.items() if level <= 3]
 
         query = query.join(models.OrganizationActivity).filter(
             models.OrganizationActivity.activity_id.in_(filtered_activities))
-
     else:
         # Поиск только по указанному ID деятельности
         query = query.join(models.OrganizationActivity).filter(models.OrganizationActivity.activity_id == activity_id)
@@ -155,23 +176,23 @@ def get_organizations_within_radius(db: Session, latitude: float, longitude: flo
             )
             ).label("distance")
         )
-        .join(models.Building)  # Join with Building to access coordinates
+        .join(models.Building)
         .subquery()
     )
 
     query = (
-        db.query(models.Organization).options(
+        db.query(models.Organization)
+        .options(
             joinedload(models.Organization.building),
             joinedload(models.Organization.phones),
             joinedload(models.Organization.activities)
         )
         .join(subquery, models.Organization.id == subquery.c.id)
         .filter(subquery.c.distance <= radius)
-        .order_by(subquery.c.distance)  # Сортировка по расстоянию
+        .order_by(subquery.c.distance)  # Сортировка по расстоянию.
         .offset(skip)
         .limit(limit)
     )
-
     return query.all()
 
 
@@ -180,32 +201,42 @@ def get_organizations_within_rectangle(db: Session, lat_min: float, long_min: fl
     """
     Ищет организации находящиеся в прямоугольнике
     """
-    query = (db.query(models.Organization).options(
-        joinedload(models.Organization.building),
-        joinedload(models.Organization.phones),
-        joinedload(models.Organization.activities)
+    query = (
+        db.query(models.Organization)
+        .options(
+            joinedload(models.Organization.building),
+            joinedload(models.Organization.phones),
+            joinedload(models.Organization.activities)
+        )
+        .join(models.Building)  # Join с таблицей Building.
+        .filter(
+            models.Building.latitude >= lat_min,
+            models.Building.latitude <= lat_max,
+            models.Building.longitude >= long_min,
+            models.Building.longitude <= long_max,
+        )
+        .offset(skip)
+        .limit(limit)
     )
-             .join(models.Building)  # Join с таблицей Building
-             .filter(
-        models.Building.latitude >= lat_min,
-        models.Building.latitude <= lat_max,
-        models.Building.longitude >= long_min,
-        models.Building.longitude <= long_max,
-    )
-             .offset(skip)
-             .limit(limit))
-
     return query.all()
 
 
 def get_organization_by_name(db: Session, name: str):
-    return (db.query(models.Organization).options(
-        joinedload(models.Organization.building),
-        joinedload(models.Organization.phones),
-        joinedload(models.Organization.activities))
-            .filter(models.Organization.name.ilike(f"%{name}%")).all())
+    """Получает организации, имя которых содержит заданную подстроку (без учета регистра), включая связанные данные."""
+    return (
+        db.query(models.Organization)
+        .options(
+            joinedload(models.Organization.building),
+            joinedload(models.Organization.phones),
+            joinedload(models.Organization.activities)
+        )
+        .filter(models.Organization.name.ilike(f"%{name}%"))
+        .all()
+    )
 
 
 # --- Organization Phones ---
+
 def get_phones_by_organization(db: Session, organization_id: int):
+    """Получает список телефонов, связанных с определенной организацией."""
     return db.query(models.OrganizationPhone).filter(models.OrganizationPhone.organization_id == organization_id).all()

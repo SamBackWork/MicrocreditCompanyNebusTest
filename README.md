@@ -16,7 +16,7 @@ REST API для справочника организаций, зданий и �
 
 1.  Склонируйте репозиторий:
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/SamBackWork/MicrocreditCompanyNebus_test.git
     ```
 1.  Перейдите в директорию проекта:
     ```bash
